@@ -4,6 +4,8 @@ import {
   FederatedPointerEvent,
   FederatedWheelEvent,
   Graphics,
+  Sprite,
+  Texture,
   Ticker,
   type AllFederatedEventMap,
 } from "pixi.js";
@@ -37,6 +39,7 @@ const ON_WHEEL_LIST = [
 ] as const satisfies (keyof AllFederatedEventMap)[];
 
 export class ScrollBox extends Container {
+  #bg: Graphics;
   #items: Container[] = [];
   #itemContainer: Container;
   #margin: number;
@@ -46,17 +49,31 @@ export class ScrollBox extends Container {
   #extraTime = 0;
   #extraFirstEase = 0;
 
-  constructor({ margin }: { margin: number }) {
+  constructor({
+    margin,
+    width,
+    height,
+  }: {
+    margin: number;
+    width: number;
+    height: number;
+  }) {
     super();
     this.#margin = margin;
 
-    const g = new Graphics({ alpha: 0.5 })
-      .rect(0, 0, window.innerWidth, 300)
+    this.#bg = new Graphics({ alpha: 0.5 })
+      .rect(0, 0, width, height)
       .fill(0xff0000);
-    this.addChild(g);
+    this.addChild(this.#bg);
 
     this.#itemContainer = new Container();
     this.addChild(this.#itemContainer);
+
+    const mask = new Sprite(Texture.WHITE);
+    mask.width = this.#bg.width;
+    mask.height = this.#bg.height;
+    this.addChild(mask);
+    this.mask = mask;
 
     this.interactive = true;
 
@@ -74,17 +91,22 @@ export class ScrollBox extends Container {
     });
   }
 
-  #setScrollMoveX(x: number) {
-    this.#itemContainer.position.x = Math.min(
+  #validateSetContainerX(x: number) {
+    this.#itemContainer.x = Math.min(
       0,
       Math.max(
         -(
           this.#items.length * this.#items[0].width +
-          (this.#items.length - 1) * this.#margin
+          (this.#items.length - 1) * this.#margin -
+          this.#bg.width
         ),
-        this.#itemContainer.x + x
+        x
       )
     );
+  }
+
+  #setScrollMoveX(x: number) {
+    this.#validateSetContainerX(this.#itemContainer.x + x);
   }
 
   #onDown(e: FederatedPointerEvent) {
@@ -129,6 +151,16 @@ export class ScrollBox extends Container {
       this.#itemContainer.addChild(item);
     });
     this.#updateItemPos();
+  }
+
+  resize(width: number, height: number) {
+    this.#bg.width = width;
+    this.#bg.height = height;
+    if (this.mask) {
+      (this.mask as Sprite).width = this.#bg.width;
+      (this.mask as Sprite).height = this.#bg.height;
+    }
+    this.#validateSetContainerX(this.#itemContainer.x);
   }
 
   animation(delta: Ticker) {

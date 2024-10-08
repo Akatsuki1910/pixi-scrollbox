@@ -23,9 +23,19 @@ const items = Array.from({ length: 100 }, (_, i) => {
   return c;
 });
 
-const s = new ScrollBox({ margin: 10 });
+const HEIGHT = 300;
+
+const s = new ScrollBox({
+  margin: 10,
+  width: window.innerWidth,
+  height: HEIGHT,
+});
 app.stage.addChild(s);
 s.setChild(items);
+
+window.addEventListener("resize", () => {
+  s.resize(window.innerWidth, HEIGHT);
+});
 
 app.ticker.add((delta) => {
   s.animation(delta);
