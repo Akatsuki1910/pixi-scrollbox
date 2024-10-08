@@ -1,5 +1,4 @@
 import {
-  compileInputs,
   Container,
   FederatedPointerEvent,
   FederatedWheelEvent,
