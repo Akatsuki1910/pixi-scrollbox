@@ -1,9 +1,11 @@
 import {
+  compileInputs,
   Container,
   FederatedPointerEvent,
   FederatedWheelEvent,
   Graphics,
   Ticker,
+  type AllFederatedEventMap,
 } from "pixi.js";
 
 const MAX_SPEED = 1000;
@@ -15,6 +17,24 @@ function easeOutQuart(x: number) {
 function reverseEaseOutQuart(x: number) {
   return 1 - Math.pow(1 - x, 1 / 4);
 }
+
+const ON_DOWN_LIST = [
+  "mousedown",
+  "touchstart",
+] as const satisfies (keyof AllFederatedEventMap)[];
+const ON_UP_LIST = [
+  "mouseup",
+  "touchend",
+  "mouseupoutside",
+  "touchendoutside",
+] as const satisfies (keyof AllFederatedEventMap)[];
+const ON_MOVE_LIST = [
+  "mousemove",
+  "touchmove",
+] as const satisfies (keyof AllFederatedEventMap)[];
+const ON_WHEEL_LIST = [
+  "wheel",
+] as const satisfies (keyof AllFederatedEventMap)[];
 
 export class ScrollBox extends Container {
   #items: Container[] = [];
@@ -39,15 +59,19 @@ export class ScrollBox extends Container {
     this.addChild(this.#itemContainer);
 
     this.interactive = true;
-    this.on("mousedown", this.#onDown);
-    this.on("touchstart", this.#onDown);
-    this.on("mouseup", this.#onUp);
-    this.on("touchend", this.#onUp);
-    this.on("mouseupoutside", this.#onUp);
-    this.on("touchendoutside", this.#onUp);
-    this.on("mousemove", this.#onMove);
-    this.on("touchmove", this.#onMove);
-    this.on("wheel", this.#onWheel);
+
+    this.#eventSet(ON_DOWN_LIST, this.#onDown);
+    this.#eventSet(ON_UP_LIST, this.#onUp);
+    this.#eventSet(ON_MOVE_LIST, this.#onMove);
+    this.#eventSet(ON_WHEEL_LIST, this.#onWheel);
+  }
+
+  #eventSet<T>(types: (keyof AllFederatedEventMap)[], fn: (e: T) => void) {
+    types.forEach((type) => {
+      this.addEventListener(type, (e) => {
+        fn.bind(this)(e as T);
+      });
+    });
   }
 
   #setScrollMoveX(x: number) {
@@ -64,15 +88,13 @@ export class ScrollBox extends Container {
   }
 
   #onDown(e: FederatedPointerEvent) {
-    e.preventDefault();
     if (this.#scrollLock) return;
     this.#scrollLock = true;
 
     this.#scrollStartX = e.clientX;
   }
 
-  #onUp(e: FederatedPointerEvent) {
-    e.preventDefault();
+  #onUp() {
     if (!this.#scrollLock) return;
     this.#scrollLock = false;
 
@@ -83,7 +105,6 @@ export class ScrollBox extends Container {
   }
 
   #onMove(e: FederatedPointerEvent) {
-    e.preventDefault();
     if (!this.#scrollLock) return;
 
     const moveX = e.clientX - this.#scrollStartX;
@@ -93,8 +114,6 @@ export class ScrollBox extends Container {
   }
 
   #onWheel(e: FederatedWheelEvent) {
-    e.preventDefault();
-
     this.#setScrollMoveX(-e.deltaX);
   }
 

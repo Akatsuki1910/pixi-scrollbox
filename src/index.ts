@@ -3,7 +3,14 @@ import { ScrollBox } from "./scrollBox";
 
 const app = new Application();
 
-await app.init({ background: "#1099bb", resizeTo: window, antialias: true });
+await app.init({
+  background: "#1099bb",
+  resizeTo: window,
+  antialias: true,
+});
+app.canvas.addEventListener("wheel", (e) => e.preventDefault(), {
+  passive: false,
+});
 
 document.body.appendChild(app.canvas);
 
