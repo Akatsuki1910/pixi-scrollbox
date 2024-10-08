@@ -3,14 +3,28 @@ import {
   FederatedPointerEvent,
   FederatedWheelEvent,
   Graphics,
+  Ticker,
 } from "pixi.js";
+
+const MAX_SPEED = 1000;
+
+function easeOutQuart(x: number) {
+  return 1 - Math.pow(1 - x, 4);
+}
+
+function reverseEaseOutQuart(x: number) {
+  return 1 - Math.pow(1 - x, 1 / 4);
+}
 
 export class ScrollBox extends Container {
   #items: Container[] = [];
   #itemContainer: Container;
   #margin: number;
   #scrollLock = false;
-  #scrollInit = 0;
+  #scrollStartX = 0;
+  #moveSpeedX = 0;
+  #extraTime = 0;
+  #extraFirstEase = 0;
 
   constructor({ margin }: { margin: number }) {
     super();
@@ -44,7 +58,7 @@ export class ScrollBox extends Container {
           this.#items.length * this.#items[0].width +
           (this.#items.length - 1) * this.#margin
         ),
-        x
+        this.#itemContainer.x + x
       )
     );
   }
@@ -52,30 +66,36 @@ export class ScrollBox extends Container {
   #onDown(e: FederatedPointerEvent) {
     e.preventDefault();
     if (this.#scrollLock) return;
-
     this.#scrollLock = true;
-    console.log("down");
+
+    this.#scrollStartX = e.clientX;
   }
 
   #onUp(e: FederatedPointerEvent) {
     e.preventDefault();
     if (!this.#scrollLock) return;
-
     this.#scrollLock = false;
-    console.log("up");
+
+    this.#extraTime = reverseEaseOutQuart(
+      Math.min(Math.abs(this.#moveSpeedX) / MAX_SPEED, 1)
+    );
+    this.#extraFirstEase = easeOutQuart(1 - this.#extraTime);
   }
 
   #onMove(e: FederatedPointerEvent) {
     e.preventDefault();
     if (!this.#scrollLock) return;
 
-    console.log("move");
+    const moveX = e.clientX - this.#scrollStartX;
+    this.#setScrollMoveX(moveX);
+    this.#moveSpeedX = moveX;
+    this.#scrollStartX = e.clientX;
   }
 
   #onWheel(e: FederatedWheelEvent) {
     e.preventDefault();
 
-    this.#setScrollMoveX(this.#itemContainer.x - e.deltaX);
+    this.#setScrollMoveX(-e.deltaX);
   }
 
   #updateItemPos() {
@@ -84,19 +104,26 @@ export class ScrollBox extends Container {
     });
   }
 
-  get margin() {
-    return this.#margin;
-  }
-
-  set margin(value) {
-    this.#margin = value;
-  }
-
   setChild(items: Container[]) {
     this.#items = items;
     this.#items.forEach((item) => {
       this.#itemContainer.addChild(item);
     });
     this.#updateItemPos();
+  }
+
+  animation(delta: Ticker) {
+    if (this.#extraTime) {
+      const moveSpeedX =
+        (this.#moveSpeedX * easeOutQuart(this.#extraTime)) /
+        this.#extraFirstEase;
+      this.#setScrollMoveX(moveSpeedX);
+      this.#extraTime -= delta.deltaTime / MAX_SPEED;
+
+      if (this.#extraTime <= 0.0001) {
+        this.#moveSpeedX = 0;
+        this.#extraTime = 0;
+      }
+    }
   }
 }
