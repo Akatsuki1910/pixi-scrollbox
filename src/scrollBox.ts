@@ -8,6 +8,7 @@ import {
   Ticker,
   type AllFederatedEventMap,
 } from "pixi.js";
+import { cloneContainer } from "./clone";
 
 const MAX_SPEED = 1000;
 
@@ -47,32 +48,36 @@ export class ScrollBox extends Container {
   #moveSpeedX = 0;
   #extraTime = 0;
   #extraFirstEase = 0;
+  #loop: boolean;
 
   constructor({
     margin,
     width,
     height,
+    loop = false,
   }: {
     margin: number;
     width: number;
     height: number;
+    loop?: boolean;
   }) {
     super();
     this.#margin = margin;
+    this.#loop = loop;
 
     this.#bg = new Graphics({ alpha: 0.5 })
       .rect(0, 0, width, height)
       .fill(0xff0000);
     this.addChild(this.#bg);
 
-    this.#itemContainer = new Container();
-    this.addChild(this.#itemContainer);
-
     const mask = new Sprite(Texture.WHITE);
     mask.width = this.#bg.width;
     mask.height = this.#bg.height;
     this.addChild(mask);
     this.mask = mask;
+
+    this.#itemContainer = new Container();
+    this.addChild(this.#itemContainer);
 
     this.interactive = true;
 
@@ -93,19 +98,23 @@ export class ScrollBox extends Container {
   #validateSetContainerX(x: number) {
     this.#itemContainer.x = Math.min(
       0,
-      Math.max(
-        -(
-          this.#items.length * this.#items[0].width +
-          (this.#items.length - 1) * this.#margin -
-          this.#bg.width
-        ),
-        x
-      )
+      Math.max(-(this.#itemContainer.width - this.#bg.width), x)
     );
   }
 
   #setScrollMoveX(x: number) {
-    this.#validateSetContainerX(this.#itemContainer.x + x);
+    let posX = this.#itemContainer.x + x;
+
+    if (this.#loop) {
+      const centerX = -this.#itemContainer.width / 2 - this.#margin / 2;
+      if (posX < centerX) {
+        posX = 0;
+      } else if (posX >= 0) {
+        posX = centerX;
+      }
+    }
+
+    this.#validateSetContainerX(posX);
   }
 
   #onDown(e: FederatedPointerEvent) {
@@ -144,12 +153,26 @@ export class ScrollBox extends Container {
     });
   }
 
-  setChild(items: Container[]) {
+  #createChildren(items: Container[]) {
+    this.#itemContainer.removeChildren();
     this.#items = items;
     this.#items.forEach((item) => {
       this.#itemContainer.addChild(item);
     });
     this.#updateItemPos();
+  }
+
+  setChild(items: Container[]) {
+    this.#createChildren(items);
+
+    if (this.#loop) {
+      const n = Math.ceil(this.#bg.width / this.#itemContainer.width) * 2;
+      this.#createChildren([
+        ...Array.from({ length: n }, () =>
+          items.map((v) => cloneContainer(v))
+        ).flat(),
+      ]);
+    }
   }
 
   resize(width: number, height: number) {
